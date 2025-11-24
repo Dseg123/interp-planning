@@ -108,7 +108,8 @@ class GreedyPolicy(BasePolicy):
         distances = []
         for action in available_actions:
             action_encoding = self.s_encoder(action)
-            distance = np.linalg.norm(action_encoding - goal)
+            # distance = np.linalg.norm(action_encoding - goal)
+            distance = -np.dot(action_encoding, goal)
             distances.append(distance)
 
         distances = np.array(distances)

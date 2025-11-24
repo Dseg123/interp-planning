@@ -60,6 +60,7 @@ class WaypointPlanner:
         self.num_waypoints_used = 0
         self.current_waypoint = None
         self.done = False
+        self.trajectory = [start]  # Track trajectory for future state sampling
 
         # Reset environment and compute initial waypoint
         self.env.reset(start, goal)
@@ -111,8 +112,9 @@ class WaypointPlanner:
         # Take step in environment
         next_state, valid = self.env.step(action)
 
-        # Update current state
+        # Update current state and trajectory
         self.current_state = next_state
+        self.trajectory.append(next_state)
 
         # Check if we've reached the current waypoint
         curr_z = self.A @ self.psi(self.current_state)
@@ -147,6 +149,29 @@ class WaypointPlanner:
         self.num_waypoints_used = 0
         self.current_waypoint = None
         self.done = False
+        self.trajectory = [self.start]  # Reset trajectory
 
         self.env.reset(self.start, self.goal)
         self._update_waypoint()
+
+    def sample_future_state(self, current_idx: int, p: float = 0.9) -> Optional[int]:
+        """
+        Sample a future state from the trajectory using geometric distribution.
+
+        Args:
+            current_idx: Index in trajectory of current state
+            p: Probability parameter for geometric distribution
+
+        Returns:
+            Future state sampled from trajectory, or None if no future states
+        """
+        max_offset = len(self.trajectory) - current_idx - 1
+        if max_offset <= 0:
+            return None
+
+        # Sample offset from geometric distribution: P(k) = p * (1-p)^(k-1)
+        # np.random.geometric returns k in {1, 2, 3, ...}
+        offset = np.random.geometric(p)
+        offset = min(offset, max_offset)
+
+        return self.trajectory[current_idx + offset]

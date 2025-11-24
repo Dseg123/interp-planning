@@ -8,48 +8,64 @@ from policies import GreedyPolicy
 import networkx as nx
 
 
-def contrastive_loss(psi, A, actions, waypoints):
+def contrastive_loss(psi, A, current_states, future_states, l2_reg=0.01, use_infonce=True):
     """
-    Compute contrastive loss for learning representations.
+    Compute contrastive loss with L2 regularization.
 
     This follows the C-learning critic loss formulation:
-    - Positive pairs: (action[i], waypoint[i]) should have high similarity
-    - Negative pairs: (action[i], waypoint[j]) for i != j should have low similarity
+    - Option 1 (InfoNCE): Uses cross-entropy over softmax similarities
+    - Option 2 (BCE): Uses binary cross-entropy with identity matrix labels
+    - Adds L2 regularization: average squared norm over embeddings in the batch
+
+    The loss trains A @ psi(s_t) to predict psi(s_t+), where s_t+ is sampled
+    from a geometric distribution over future states.
 
     Args:
         psi: State embedding matrix (n x k) - PyTorch tensor
         A: Transformation matrix (k x k) - PyTorch tensor
-        actions: List or array of action states (integers) - length batch_size
-        waypoints: Waypoint embeddings (batch_size x k) - PyTorch tensor
+        current_states: List or array of current states (integers) - length batch_size
+        future_states: List or array of future states (integers) - length batch_size
+        l2_reg: L2 regularization coefficient for embedding norms
+        use_infonce: If True, use InfoNCE (cross-entropy), otherwise use BCE
 
     Returns:
         Loss value (scalar tensor)
     """
-    # Convert actions to tensor if needed
-    if not isinstance(actions, torch.Tensor):
-        actions = torch.tensor(actions, dtype=torch.long)
+    # Convert to tensors if needed
+    if not isinstance(current_states, torch.Tensor):
+        current_states = torch.tensor(current_states, dtype=torch.long)
+    if not isinstance(future_states, torch.Tensor):
+        future_states = torch.tensor(future_states, dtype=torch.long)
 
-    # Get action embeddings: psi(action)
-    action_emb = psi[actions]  # (batch_size, k)
+    # Get current state embeddings and transform them: A @ psi(s_t)
+    current_emb = psi[current_states]  # (batch_size, k)
+    sa_repr = current_emb @ A.T  # (batch_size, k) - prediction of future
 
-    # Transform action embeddings: A @ psi(action)
-    # action_emb is (batch_size, k), A is (k, k)
-    # We want (batch_size, k) @ (k, k)^T = (batch_size, k)
-    sa_repr = action_emb @ A.T  # (batch_size, k)
+    # Get future state embeddings: psi(s_t+)
+    future_emb = psi[future_states]  # (batch_size, k)
 
-    # Waypoints are already embeddings
-    g_repr = waypoints  # (batch_size, k)
-
-    # Compute logits: <sa_repr[i], g_repr[j]> for all i, j
+    # Compute logits: <sa_repr[i], future_emb[j]> for all i, j
     # This is the similarity matrix
-    logits = torch.einsum('ik,jk->ij', sa_repr, g_repr)  # (batch_size, batch_size)
+    logits = torch.einsum('ik,jk->ij', sa_repr, future_emb)  # (batch_size, batch_size)
 
-    # Labels: identity matrix (positive pairs on diagonal)
     batch_size = logits.shape[0]
-    labels = torch.eye(batch_size, device=logits.device, dtype=logits.dtype)
 
-    # Binary cross-entropy with logits
-    loss = F.binary_cross_entropy_with_logits(logits, labels)
+    if use_infonce:
+        # InfoNCE loss: cross-entropy where positive pair is on diagonal
+        labels = torch.arange(batch_size, device=logits.device)
+        contrastive_loss_val = F.cross_entropy(logits, labels)
+    else:
+        # Binary cross-entropy with identity matrix labels (original C-learning)
+        labels = torch.eye(batch_size, device=logits.device, dtype=logits.dtype)
+        contrastive_loss_val = F.binary_cross_entropy_with_logits(logits, labels)
+
+    # L2 regularization: average squared norm over embeddings in current_states
+    # ||psi(s)||^2 for s in current_states
+    current_squared_norms = torch.sum(current_emb ** 2, dim=1)  # (batch_size,)
+    l2_loss = torch.mean(current_squared_norms)
+
+    # Total loss
+    loss = contrastive_loss_val + l2_reg * l2_loss
 
     return loss
 
@@ -97,27 +113,32 @@ def contrastive_loss_numpy(psi, A, actions, waypoints):
 def learning_epoch(
     psi: torch.Tensor,
     A: torch.Tensor,
-    actions: List[int],
-    waypoints: torch.Tensor,
+    current_states: List[int],
+    future_states: List[int],
     env: GraphProblem,
     learning_rate: float = 0.01,
     iters_per_epoch: int = 1,
-    T: float=1.0
-) -> Tuple[torch.Tensor, torch.Tensor, GreedyPolicy]:
+    policy_temperature: float = 1.0,
+    l2_reg: float = 0.01,
+    use_infonce: bool = True
+) -> Tuple[torch.Tensor, torch.Tensor, GreedyPolicy, float]:
     """
     Perform gradient descent on psi and A using contrastive loss.
 
     Args:
         psi: State embedding matrix (n x k) - PyTorch tensor with requires_grad=True
         A: Transformation matrix (k x k) - PyTorch tensor with requires_grad=True
-        actions: List of action states (integers) from batch
-        waypoints: Waypoint embeddings (batch_size x k) - PyTorch tensor
+        current_states: List of current states (integers) from batch
+        future_states: List of future states (integers) sampled with geometric distribution
         env: GraphProblem environment for creating the policy
         learning_rate: Learning rate for gradient descent
         iters_per_epoch: Number of gradient steps to perform
+        policy_temperature: Temperature for policy softmax
+        l2_reg: L2 regularization coefficient
+        use_infonce: If True, use InfoNCE loss, otherwise use BCE
 
     Returns:
-        Tuple of (updated_psi, updated_A, new_policy)
+        Tuple of (updated_psi, updated_A, new_policy, loss)
     """
     # Create optimizer
     optimizer = torch.optim.Adam([psi, A], lr=learning_rate)
@@ -127,7 +148,8 @@ def learning_epoch(
         optimizer.zero_grad()
 
         # Compute loss
-        loss = contrastive_loss(psi, A, actions, waypoints)
+        loss = contrastive_loss(psi, A, current_states, future_states,
+                               l2_reg=l2_reg, use_infonce=use_infonce)
 
         # Backward pass
         loss.backward()
@@ -139,10 +161,8 @@ def learning_epoch(
     psi_np = psi.detach().numpy()
     A_np = A.detach().numpy()
 
-    # def psi_fun(x: int) -> np.ndarray:
-    #     return psi_np[x, :]
-
-    new_policy = GreedyPolicy(env, lambda x: A_np @ psi_np[x, :], temperature=T)
+    # Policy uses A @ psi to predict future states
+    new_policy = GreedyPolicy(env, lambda x: A_np @ psi_np[x, :], temperature=policy_temperature)
 
     return psi, A, new_policy, loss.item()
 
