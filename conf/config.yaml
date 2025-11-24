@@ -1,0 +1,38 @@
+# Main configuration for interpolative planner
+seed: 42
+
+# Environment settings
+env:
+  n: 100  # number of vertices
+  p: 0.05  # edge probability
+  gamma: 0.9  # discount factor for geometric distribution
+
+# Model settings
+model:
+  k: 5  # latent dimension
+
+# Planner settings
+planner:
+  waypoint_type: 'i'  # 'i' for interpolative, 'c' for c-waypoint
+  max_waypoints: 0
+  c: 1.0  # parameter for i-waypoint
+  temperature: 1.0  # temperature for policy softmax
+
+# Training settings
+training:
+  N_T: 50  # number of parallel trajectories/planners
+  num_epochs: 1000
+  learn_frequency: 10  # learn every N epochs
+  learning_rate: 0.01
+  iters_per_epoch: 1  # gradient steps per learning epoch
+  batch_size: 256  # batch size for learning
+  buffer_size: 10000  # replay buffer size
+  l2_reg: 0.01  # L2 regularization coefficient
+  use_infonce: false  # use InfoNCE loss (true) or BCE loss (false)
+
+# Evaluation settings
+eval:
+  num_test_pairs: 100  # number of start/goal pairs to test
+  num_trials_per_pair: 10  # number of trials per pair
+  max_steps: 100  # maximum steps per trajectory
+  temperature: 0.1  # temperature for evaluation policy (lower = more greedy)
