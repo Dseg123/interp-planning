@@ -1,0 +1,15 @@
+# Sweep configuration for hyperparameter search
+# Inherits from base config and defines sweep parameters
+
+defaults:
+  - config  # Inherit base configuration
+
+# Hydra settings for sweep
+hydra:
+  sweep:
+    dir: outputs/sweeps/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: k${model.k}_${planner.waypoint_type}_lr${training.learning_rate}
+
+# These values will be overridden by command-line sweep parameters
+# No need to define them here - just use command line like:
+# python pipeline.py --config-name sweep --multirun model.k=3,5,10,20 planner.waypoint_type=i,c,n

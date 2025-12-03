@@ -35,7 +35,7 @@ class GraphProblem:
         Generate a random connected undirected graph using ErdQsR�nyi model.
         If the generated graph is not connected, regenerate until we get a connected one.
         """
-        max_attempts = 100
+        max_attempts = 1000
         for _ in range(max_attempts):
             # Generate random graph
             G = nx.erdos_renyi_graph(
@@ -47,6 +47,8 @@ class GraphProblem:
             # Check if connected
             if nx.is_connected(G):
                 return G
+            
+        print("Not found in max attempts")
 
         # Fallback: create a connected graph by starting with a spanning tree
         # and adding random edges

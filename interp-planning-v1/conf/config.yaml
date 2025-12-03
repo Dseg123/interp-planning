@@ -13,8 +13,8 @@ model:
 
 # Planner settings
 planner:
-  waypoint_type: 'i'  # 'i' for interpolative, 'c' for c-waypoint
-  max_waypoints: 0
+  waypoint_type: 'n'  # 'i' for interpolative, 'c' for c-waypoint
+  max_waypoints: 10
   c: 1.0  # parameter for i-waypoint
   temperature: 1.0  # temperature for policy softmax
 
@@ -27,7 +27,7 @@ training:
   iters_per_epoch: 1  # gradient steps per learning epoch
   batch_size: 256  # batch size for learning
   buffer_size: 10000  # replay buffer size
-  l2_reg: 0.01  # L2 regularization coefficient
+  l2_reg: 0  # L2 regularization coefficient
   use_infonce: false  # use InfoNCE loss (true) or BCE loss (false)
 
 # Evaluation settings

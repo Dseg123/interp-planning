@@ -228,6 +228,10 @@ def evaluate(A_np: np.ndarray,
     else:
         efficiency = 0.0
 
+    # Compute MSE between path length and optimal path length (includes all trials, even failed ones)
+    all_true_lens_expanded = all_true_lens * num_trials_per_pair
+    mse_path_length = np.mean([(l - true_l) ** 2 for l, true_l in zip(all_lens_flat, all_true_lens_expanded)])
+
     eval_time = time.time() - eval_start_time
 
     results = {
@@ -235,6 +239,7 @@ def evaluate(A_np: np.ndarray,
         'mean_path_length': mean_len,
         'mean_optimal_length': mean_true_len,
         'efficiency': efficiency,
+        'mse_path_length': mse_path_length,
         'all_lens': all_lens,
         'all_true_lens': all_true_lens,
         'eval_time': eval_time
@@ -245,6 +250,7 @@ def evaluate(A_np: np.ndarray,
     print(f"Mean Path Length: {mean_len:.2f}")
     print(f"Mean Optimal Length: {mean_true_len:.2f}")
     print(f"Efficiency: {efficiency:.2%}")
+    print(f"MSE Path Length: {mse_path_length:.2f}")
     print(f"Evaluation Time: {eval_time:.2f}s")
 
     return results
