@@ -1,2 +1,4 @@
 *.slurm
 *.pyc
+*.pkl
+*.pt

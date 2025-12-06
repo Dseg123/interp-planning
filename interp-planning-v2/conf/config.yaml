@@ -22,6 +22,7 @@ planner:
   max_waypoints: 10  # Maximum number of waypoints before going directly to goal
   M: 50              # Number of samples for c-waypoint
   eps: 0.1           # Distance threshold to consider waypoint reached
+  waypoint_temp: 1
 
 # Training parameters
 training:

@@ -149,7 +149,7 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
             M=config.planner.M,
             c=config.training.c_target,  # Use same c as L2 constraint
             eps=config.planner.eps,
-            T=config.training.temperature
+            T=config.planner.waypoint_temp
         )
         planners.append(planner)
 
@@ -406,15 +406,17 @@ def evaluate(psi_net: StateEncoder,
     return results
 
 
-def train_and_evaluate(config: DictConfig) -> dict:
+def train_and_evaluate(config: DictConfig, return_models: bool = False):
     """
     Train and evaluate the interpolative planner.
 
     Args:
         config: Hydra configuration object
+        return_models: If True, returns (results, models) tuple where models contains psi_net, A_np, log_lambda_np, env
 
     Returns:
         Dictionary with evaluation results (includes train_time, eval_time, and training_history)
+        OR tuple of (results, models) if return_models=True
     """
     print("Starting training...")
     psi_net, A_np, log_lambda_np, env, train_time, training_history = train(config)
@@ -429,7 +431,16 @@ def train_and_evaluate(config: DictConfig) -> dict:
 
     print(f"\nTotal Time: {results['total_time']:.2f}s (Train: {train_time:.2f}s, Eval: {results['eval_time']:.2f}s)")
 
-    return results
+    if return_models:
+        models = {
+            'psi_net': psi_net,
+            'A_np': A_np,
+            'log_lambda_np': log_lambda_np,
+            'env': env
+        }
+        return results, models
+    else:
+        return results
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
