@@ -30,9 +30,15 @@ def main(config: DictConfig):
     # Run training and evaluation (get models too)
     results, models = train_and_evaluate(config, return_models=True)
 
-    # Get current working directory (Hydra output dir)
-    import os
-    output_dir = Path(os.getcwd())
+    # Determine Hydra output directory (preferred) falling back to cwd
+    try:
+        from hydra.core.hydra_config import HydraConfig
+        hc = HydraConfig.get()
+        # HydraConfig.runtime.output_dir is set when Hydra initializes the run
+        output_dir = Path(hc.runtime.output_dir) if hc is not None and hasattr(hc, 'runtime') and hasattr(hc.runtime, 'output_dir') else Path.cwd()
+    except Exception:
+        import os
+        output_dir = Path(os.getcwd())
 
     # Save results
     results_file = output_dir / "results.pkl"

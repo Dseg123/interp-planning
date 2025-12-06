@@ -39,7 +39,7 @@ def load_model(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
 
     # Load the checkpoint
-    checkpoint = torch.load(model_path)
+    checkpoint = torch.load(model_path, weights_only=False)
 
     # Extract config
     config = OmegaConf.create(checkpoint['config'])
