@@ -149,7 +149,9 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
             M=config.planner.M,
             c=config.training.c_target,  # Use same c as L2 constraint
             eps=config.planner.eps,
-            T=config.planner.waypoint_temp
+            T=config.planner.waypoint_temp,
+            num_gmm_comps=config.planner.num_gmm_comps,
+            num_gmm_iters=config.planner.num_gmm_iters
         )
         planners.append(planner)
 
@@ -160,7 +162,7 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
 
     # Get scheduling parameters
     initial_lr = config.training.learning_rate
-    min_lr = initial_lr * 0.1
+    min_lr = initial_lr * 0.01
     initial_temp = config.training.temperature
     min_temp = config.eval.temperature
 

@@ -23,6 +23,8 @@ planner:
   M: 50              # Number of samples for c-waypoint
   eps: 0.1           # Distance threshold to consider waypoint reached
   waypoint_temp: 1
+  num_gmm_comps: 1
+  num_gmm_iters: 10
 
 # Training parameters
 training:
