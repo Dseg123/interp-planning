@@ -2,7 +2,7 @@ import numpy as np
 from typing import Callable, Tuple, Optional, List
 from problems import GridworldProblem
 from policies import BasePolicy
-from waypoints import c_waypoint, i_waypoint
+from waypoints import c_waypoint, i_waypoint, g_waypoint
 
 
 class WaypointPlanner:
@@ -26,7 +26,9 @@ class WaypointPlanner:
         M: int = 50,
         c: float = 1.0,
         eps: float = 1e-3,
-        T: float = 1.0
+        T: float = 1.0,
+        num_gmm_comps: int = 1,
+        num_gmm_iters: int = 10
     ):
         """
         Initialize the waypoint planner.
@@ -59,6 +61,8 @@ class WaypointPlanner:
         self.c = c
         self.eps = eps
         self.T = T
+        self.num_gmm_comps = num_gmm_comps
+        self.num_gmm_iters = num_gmm_iters
 
         # Internal state
         self.current_state = start.copy()
@@ -88,6 +92,11 @@ class WaypointPlanner:
             elif self.waypoint_type == 'i':
                 self.current_waypoint = i_waypoint(
                     self.current_state, self.goal, self.psi, self.A, self.c
+                )
+            elif self.waypoint_type == 'g':
+                self.current_waypoint = g_waypoint(
+                    self.current_state, self.goal, self.psi, self.A,
+                    self.state_buffer, self.M, self.num_gmm_comps, self.T, self.num_gmm_iters
                 )
             elif self.waypoint_type == 'n':
                 # No waypoints - go directly to goal
@@ -194,3 +203,47 @@ class WaypointPlanner:
         offset = min(offset, max_offset)
 
         return self.trajectory[current_idx + offset].copy()
+
+    def rollout(self, start: np.ndarray, goal: np.ndarray, max_steps: int, num_waypoints: int) -> Tuple[List[np.ndarray], int, bool]:
+        """
+        Perform a full rollout from `start` to `goal` using at most `num_waypoints` waypoints.
+
+        The planner is reset to `start`/`goal`, its `max_waypoints` is set to
+        `num_waypoints` for the duration of the rollout, and `step()` is called
+        repeatedly until the planner reaches the goal or `max_steps` is exceeded.
+
+        Args:
+            start: Starting state (N-dimensional array)
+            goal: Goal state (N-dimensional array)
+            max_steps: Maximum number of environment steps to execute
+            num_waypoints: Maximum number of waypoints to use during this rollout
+
+        Returns:
+            states_visited: Full list of states visited (including start)
+            path_length: Number of steps taken (len(states_visited) - 1)
+            success: Whether the rollout reached the goal
+        """
+        # Quick check: if start equals goal, return immediately
+        if np.array_equal(start, goal):
+            return [start.copy()], 0, True
+
+        # Save old planner setting and reset planner
+        old_max_waypoints = self.max_waypoints
+        try:
+            self.reset(start=start, goal=goal)
+            # Use the provided waypoint budget for this rollout
+            self.max_waypoints = int(num_waypoints)
+
+            steps = 0
+            while steps < max_steps and not self.done:
+                self.step()
+                steps += 1
+
+            states_visited = [s.copy() for s in self.trajectory]
+            path_length = max(0, len(states_visited) - 1)
+            success = np.array_equal(self.current_state, self.goal)
+
+            return states_visited, path_length, bool(success)
+        finally:
+            # Restore previous planner configuration
+            self.max_waypoints = old_max_waypoints

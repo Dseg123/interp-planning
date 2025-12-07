@@ -85,10 +85,13 @@ class GreedyPolicy(BasePolicy):
 
             # Compute distance to goal in embedding space
             next_embedding = self.s_encoder(next_state)
-            dist = np.linalg.norm(next_embedding - goal_embedding)
+            dist = 0.5 * np.linalg.norm(next_embedding - goal_embedding)**2
             distances.append(dist)
 
         distances = np.array(distances)
+
+        if self.temperature == 0:
+            return available_actions[np.argmin(distances)]
 
         # Softmax over negative distances (lower distance = higher probability)
         logits = -distances / self.temperature
