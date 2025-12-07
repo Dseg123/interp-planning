@@ -2,6 +2,11 @@ import numpy as np
 from typing import Optional, Callable, List
 # from sklearn.mixture import GaussianMixture
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from typing import Tuple
+
 
 
 def c_waypoint(
@@ -84,11 +89,6 @@ def i_waypoint(
     i_waypoint_emb = np.random.multivariate_normal(mu, sigma)
     return i_waypoint_emb
 
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from typing import Tuple
 
 def g_waypoint(
     start: np.ndarray,
@@ -127,6 +127,7 @@ def g_waypoint(
 
     # Encode start and goal
     start_emb = A @ psi(start)
+    # print("Start emb:", start_emb)
     goal_emb = psi(goal)
 
     # Sample states from buffer
@@ -136,6 +137,7 @@ def g_waypoint(
 
     # Compute psi embeddings
     psi_embs = np.array([psi(s) for s in sampled_states])  # shape (M, d)
+    # print("Psi embs:", psi_embs)
 
     # Compute the C-Planning cost for each sampled state
     # cost(s) = ||psi(s) - A psi(start)||^2 + ||A psi(s) - psi(goal)||^2
@@ -226,7 +228,7 @@ def fit_gmm_match_probs(
 
     # Optimization loop
     for it in range(n_iters):
-        print(it)
+        # print(it)
         optimizer.zero_grad()
         g, log_g, weights = gmm_pdf_at_points()  # g: (M,)
         # normalize to discrete q

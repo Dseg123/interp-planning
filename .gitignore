@@ -4,3 +4,4 @@
 *.pt
 
 interp-planning-v2/results
+experiments/outputs/*

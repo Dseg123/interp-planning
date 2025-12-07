@@ -18,17 +18,17 @@ model:
 
 # Planner parameters
 planner:
-  waypoint_type: n   # Waypoint type: 'c' (c-waypoint), 'i' (i-waypoint), 'n' (no waypoints)
+  waypoint_type: g   # Waypoint type: 'c' (c-waypoint), 'i' (i-waypoint), 'n' (no waypoints)
   max_waypoints: 10  # Maximum number of waypoints before going directly to goal
   M: 50              # Number of samples for c-waypoint
   eps: 0.1           # Distance threshold to consider waypoint reached
   waypoint_temp: 1
   num_gmm_comps: 1
-  num_gmm_iters: 10
+  num_gmm_iters: 1
 
 # Training parameters
 training:
-  N_T: 50            # Number of parallel trajectory planners
+  N_T: 1            # Number of parallel trajectory planners
   num_epochs: 1000   # Total number of training epochs
   batch_size: 128    # Batch size for contrastive learning
   buffer_size: 10000 # Maximum size of replay buffer
@@ -38,6 +38,7 @@ training:
   c_target: 1.0      # Target L2 norm constraint (also used for i-waypoint c parameter)
   eval_frequency: 100 # Evaluate policy every N epochs (set to null to disable)
   temperature: 1.0   # Temperature for policy softmax
+  max_steps: 100
 
 
 # Evaluation parameters
@@ -45,7 +46,7 @@ eval:
   num_test_pairs: 50    # Number of random start/goal pairs to test
   num_trials_per_pair: 10  # Number of trials per start/goal pair
   max_steps: 100        # Maximum steps per evaluation episode
-  temperature: 0.1      # Temperature for evaluation policy (lower = more greedy)
+  temperature: 0      # Temperature for evaluation policy (lower = more greedy)
 
 # Hydra configuration
 hydra:

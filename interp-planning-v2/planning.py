@@ -94,10 +94,15 @@ class WaypointPlanner:
                     self.current_state, self.goal, self.psi, self.A, self.c
                 )
             elif self.waypoint_type == 'g':
-                self.current_waypoint = g_waypoint(
-                    self.current_state, self.goal, self.psi, self.A,
-                    self.state_buffer, self.M, self.num_gmm_comps, self.T, self.num_gmm_iters
-                )
+                if len(self.state_buffer) < self.M:
+                    # Not enough states in buffer, use direct goal
+                    self.current_waypoint = self.psi(self.goal)
+                else:
+                    self.current_waypoint = g_waypoint(
+                        self.current_state, self.goal, self.psi, self.A,
+                        self.state_buffer, self.M, self.num_gmm_comps, self.T, self.num_gmm_iters
+                    )
+                
             elif self.waypoint_type == 'n':
                 # No waypoints - go directly to goal
                 self.current_waypoint = self.psi(self.goal)
@@ -204,7 +209,7 @@ class WaypointPlanner:
 
         return self.trajectory[current_idx + offset].copy()
 
-    def rollout(self, start: np.ndarray, goal: np.ndarray, max_steps: int, num_waypoints: int) -> Tuple[List[np.ndarray], int, bool]:
+    def rollout(self, start: np.ndarray, goal: np.ndarray, max_steps: int, num_waypoints: int, temperature: float) -> Tuple[List[np.ndarray], int, bool]:
         """
         Perform a full rollout from `start` to `goal` using at most `num_waypoints` waypoints.
 
@@ -230,9 +235,19 @@ class WaypointPlanner:
         # Save old planner setting and reset planner
         old_max_waypoints = self.max_waypoints
         try:
+            old_temperature = self.policy.temperature
+        except:
+            pass
+            
+
+        try:
             self.reset(start=start, goal=goal)
             # Use the provided waypoint budget for this rollout
             self.max_waypoints = int(num_waypoints)
+            try:
+                self.policy.temperature = temperature
+            except:
+                pass
 
             steps = 0
             while steps < max_steps and not self.done:
@@ -247,3 +262,7 @@ class WaypointPlanner:
         finally:
             # Restore previous planner configuration
             self.max_waypoints = old_max_waypoints
+            try:
+                self.policy.temperature = temperature
+            except:
+                pass
