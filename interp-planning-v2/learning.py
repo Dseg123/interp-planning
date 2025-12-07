@@ -100,7 +100,7 @@ def contrastive_loss_with_dual(
     l2 = (torch.mean(psi**2) + torch.mean(current_emb**2)) / 2
 
     # Alignment loss: ||phi - psi||^2 for positive pairs
-    l_align = torch.mean((phi - psi) ** 2, dim=1)  # (batch_size,)
+    l_align = torch.sum((phi - psi) ** 2, dim=1)  # (batch_size,)
 
     # Pairwise distances: ||phi[i] - psi[j]||^2 for all i, j
     # phi[:, None] is (batch_size, 1, k)

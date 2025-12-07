@@ -2,3 +2,5 @@
 *.pyc
 *.pkl
 *.pt
+
+interp-planning-v2/results

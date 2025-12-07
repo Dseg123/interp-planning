@@ -16,7 +16,6 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 from pipeline import train_and_evaluate
 
-
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(config: DictConfig):
     """Main entry point for Hydra with model saving."""
@@ -39,7 +38,10 @@ def main(config: DictConfig):
     except Exception:
         import os
         output_dir = Path(os.getcwd())
-
+        
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"\nSaving results to directory: {output_dir}")
     # Save results
     results_file = output_dir / "results.pkl"
     with open(results_file, 'wb') as f:
