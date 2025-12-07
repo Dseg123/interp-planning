@@ -7,7 +7,7 @@ from planning import WaypointPlanner
 from learning import learning_epoch, initialize_encoder_random, StateEncoder
 from collections import deque
 import copy
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 from omegaconf import DictConfig
 import hydra
 import time
@@ -149,43 +149,50 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
             M=config.planner.M,
             c=config.training.c_target,  # Use same c as L2 constraint
             eps=config.planner.eps,
-            T=config.planner.waypoint_temp
+            T=config.planner.waypoint_temp,
+            num_gmm_comps=config.planner.num_gmm_comps,
+            num_gmm_iters=config.planner.num_gmm_iters
         )
         planners.append(planner)
 
     print(f"Created {len(planners)} planners")
 
-    # Initialize replay buffer
+    # Initialize replay buffer (store full trajectories)
     replay_buffer = deque(maxlen=config.training.buffer_size)
+
+    # Helper: sample a future state from a trajectory using geometric distribution
+    def sample_future_from_traj(traj: List[np.ndarray], current_idx: int, p: float = 0.9) -> Optional[np.ndarray]:
+        max_offset = len(traj) - current_idx - 1
+        if max_offset <= 0:
+            return None
+        offset = np.random.geometric(p)
+        offset = min(offset, max_offset)
+        return traj[current_idx + offset].copy()
 
     # Get scheduling parameters
     initial_lr = config.training.learning_rate
-    min_lr = initial_lr * 0.1
+    min_lr = initial_lr * 0.01
     initial_temp = config.training.temperature
     min_temp = config.eval.temperature
 
     # Training loop
     for epoch in range(config.training.num_epochs):
-        # Step each planner forward and collect (current_state, future_state) pairs
+        # For each planner, roll it forward to produce a full trajectory and store it
         for planner in planners:
-            # Step planner
-            action, waypoint, done = planner.step()
+            # Roll planner forward from its current state to goal (or until max steps)
+            traj, path_len, success = planner.rollout(
+                start=planner.current_state,
+                goal=planner.goal,
+                max_steps=config.training.max_steps,
+                num_waypoints=config.planner.max_waypoints
+            )
 
-            # Sample (current_state, future_state) pair from trajectory
-            if len(planner.trajectory) >= 2:
-                # Randomly sample a position in the trajectory (not the last one)
-                current_idx = np.random.randint(0, len(planner.trajectory) - 1)
-                current_state = planner.trajectory[current_idx]
+            # Store the full trajectory in the replay buffer if it contains at least two states
+            if len(traj) >= 2:
+                replay_buffer.append(traj)
 
-                # Sample future state from trajectory using geometric distribution
-                future_state = planner.sample_future_state(current_idx, p=config.env.gamma)
-
-                if future_state is not None:
-                    # Store (current_state, future_state) pair
-                    replay_buffer.append((current_state.copy(), future_state.copy()))
-
-            # Reset if done
-            if done:
+            # If the planner finished (reached goal or became done), reset with a new random pair
+            if planner.done:
                 start_state, goal_state = env.reset()
                 planner.reset(start_state, goal_state)
 
@@ -201,17 +208,34 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
             current_lr = min_lr + (initial_lr - min_lr) * cosine_factor
             current_temp = min_temp + (initial_temp - min_temp) * cosine_factor
 
-            # Sample batch
+            # Sample batch of trajectories (with replacement to increase diversity)
+            if len(replay_buffer) == 0:
+                continue
+
             indices = np.random.choice(
                 len(replay_buffer),
                 size=config.training.batch_size,
-                replace=False
+                replace=True
             )
-            batch = [replay_buffer[i] for i in indices]
+            traj_batch = [replay_buffer[i] for i in indices]
 
-            # Extract current and future states
-            current_states = [s for s, _ in batch]
-            future_states = [s_plus for _, s_plus in batch]
+            # From each trajectory, randomly sample a current state and a geometrically-sampled future state
+            pairs = []
+            for traj in traj_batch:
+                if len(traj) < 2:
+                    continue
+                current_idx = np.random.randint(0, len(traj) - 1)
+                current_state = traj[current_idx]
+                future_state = sample_future_from_traj(traj, current_idx, p=config.env.gamma)
+                if future_state is not None:
+                    pairs.append((current_state.copy(), future_state.copy()))
+
+            if len(pairs) == 0:
+                continue
+
+            # If we collected fewer pairs than batch size, learning_epoch will run on smaller batch
+            current_states = [s for s, _ in pairs]
+            future_states = [s_plus for _, s_plus in pairs]
 
             # Run learning with scheduled learning rate and temperature
             psi_net, A_torch, log_lambda, policy, metrics = learning_epoch(
@@ -233,11 +257,11 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
                         return net(state_tensor).squeeze(0).numpy()
                 return psi_fn
 
-            # Extract all states from replay buffer for c-waypoint sampling
+            # Extract all states from replay buffer (each entry is a trajectory)
             state_buffer = []
-            for current_state, future_state in replay_buffer:
-                state_buffer.append(current_state.copy())
-                state_buffer.append(future_state.copy())
+            for traj in replay_buffer:
+                for s in traj:
+                    state_buffer.append(s.copy())
 
             for planner in planners:
                 planner.policy = policy
