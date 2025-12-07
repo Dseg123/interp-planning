@@ -32,6 +32,7 @@ def evaluate_with_policy(policy, psi_net: StateEncoder, A_np: np.ndarray,
     success_count = 0
     total_trials = 0
     all_lens = []
+    all_errors = []
 
     for _ in range(num_pairs):
         start_state, goal_state = env.reset()
@@ -65,13 +66,16 @@ def evaluate_with_policy(policy, psi_net: StateEncoder, A_np: np.ndarray,
         success_count += int(reached_goal)
         total_trials += 1
         all_lens.append(len(trajectory) - 1)
+        all_errors.append(len(trajectory) - 1 - env.get_distance(start_state, goal_state))
 
     success_rate = success_count / total_trials if total_trials > 0 else 0.0
     mean_path_length = np.mean(all_lens) if all_lens else 0.0
+    mean_error = np.mean(all_errors) if all_errors else 0.0
 
     return {
         'success_rate': success_rate,
-        'mean_path_length': mean_path_length
+        'mean_path_length': mean_path_length,
+        'mean_error': mean_error
     }
 
 
@@ -97,7 +101,8 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
         'temperature': [],
         'success_rate': [],
         'mean_path_length': [],
-        'eval_epochs': []
+        'eval_epochs': [],
+        'mean_error': []
     }
 
     # Create environment
@@ -174,6 +179,7 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
     min_lr = initial_lr * 0.01
     initial_temp = config.training.temperature
     min_temp = config.eval.temperature
+    current_temp = initial_temp
 
     # Training loop
     for epoch in range(config.training.num_epochs):
@@ -184,7 +190,8 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
                 start=planner.current_state,
                 goal=planner.goal,
                 max_steps=config.training.max_steps,
-                num_waypoints=config.planner.max_waypoints
+                num_waypoints=config.planner.max_waypoints,
+                temperature=current_temp
             )
 
             # Store the full trajectory in the replay buffer if it contains at least two states
@@ -287,9 +294,11 @@ def train(config: DictConfig) -> Tuple[StateEncoder, np.ndarray, np.ndarray, Gri
                 training_history['eval_epochs'].append(epoch)
                 training_history['success_rate'].append(eval_results['success_rate'])
                 training_history['mean_path_length'].append(eval_results['mean_path_length'])
+                training_history['mean_error'].append(eval_results['mean_error'])
 
                 print(f"Success Rate: {eval_results['success_rate']:.2%}, "
-                      f"Mean Path Length: {eval_results['mean_path_length']:.2f}\n")
+                      f"Mean Path Length: {eval_results['mean_path_length']:.2f}, "
+                      f"Mean Error: {eval_results['mean_error']:.2f}\n")
 
             if epoch % 1 == 0:
                 print(f"Epoch {epoch}: Buffer size = {len(replay_buffer)}, "
