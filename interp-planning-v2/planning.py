@@ -4,7 +4,7 @@ from problems import GridworldProblem
 from policies import BasePolicy
 from waypoints import c_waypoint, i_waypoint, g_waypoint
 
-
+import time
 class WaypointPlanner:
     """
     A planner that maintains internal state and takes one step at a time toward waypoints.
@@ -73,7 +73,10 @@ class WaypointPlanner:
 
         # Reset environment and compute initial waypoint
         self.env.reset(start, goal)
+        # start_time = time.time()
         self._update_waypoint()
+        # print("Waypoint Runtime:", time.time() - start_time)
+        
 
     def _update_waypoint(self):
         """Update the current waypoint based on current state and goal."""
@@ -90,6 +93,7 @@ class WaypointPlanner:
                         self.state_buffer, self.M, self.T
                     )
             elif self.waypoint_type == 'i':
+                
                 self.current_waypoint = i_waypoint(
                     self.current_state, self.goal, self.psi, self.A, self.c
                 )
@@ -153,7 +157,9 @@ class WaypointPlanner:
         if np.linalg.norm(curr_z - waypoint) < self.eps:
             # Waypoint reached, update to next waypoint
             self.num_waypoints_used += 1
+            # start_time = time.time()
             self._update_waypoint()
+            # print("Waypoint Runtime:", time.time() - start_time)
 
         # Check if done
         if np.array_equal(self.current_state, self.goal):

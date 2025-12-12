@@ -1,0 +1,35 @@
+K=100
+N=10
+
+python experiments/run_experiment.py \
+    seed=123 \
+    env.K=$K \
+    env.N=$N \
+    env.O=0 \
+    env.r=5 \
+    env.gamma=0.9 \
+    model.k=64 \
+    model.hidden_dims=[64,64] \
+    training.num_epochs=12000 \
+    training.temp_cutoff_pct=0.83 \
+    training.lr_cutoff_pct=0.83 \
+    training.N_T=1 \
+    training.batch_size=128 \
+    training.buffer_size=20000 \
+    training.learn_frequency=10 \
+    training.learning_rate=5e-3 \
+    training.eval_frequency=500 \
+    planner.waypoint_type='n' \
+    planner.max_waypoints=5 \
+    training.c_target=5\
+    planner.M=10 \
+    planner.eps=0.5 \
+    planner.waypoint_temp=1.0 \
+    planner.num_gmm_comps=3 \
+    planner.num_gmm_iters=25 \
+    eval.num_test_pairs=100 \
+    eval.num_trials_per_pair=5 \
+    eval.max_steps=500 \
+    training.temperature=0.75 \
+    eval.temperature=0.1 \
+    hydra.run.dir=results/${K}x${N}_opt/n

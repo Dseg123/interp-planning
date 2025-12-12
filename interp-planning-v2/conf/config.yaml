@@ -38,6 +38,8 @@ training:
   c_target: 1.0      # Target L2 norm constraint (also used for i-waypoint c parameter)
   eval_frequency: 100 # Evaluate policy every N epochs (set to null to disable)
   temperature: 1.0   # Temperature for policy softmax
+  temp_cutoff_pct: 0.5 # Percentage of epochs by which temperature reaches floor (0.5 = 50%)
+  lr_cutoff_pct: 1.0   # Percentage of epochs by which learning rate reaches floor (1.0 = 100%)
   max_steps: 100
 
 

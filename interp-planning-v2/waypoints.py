@@ -8,7 +8,6 @@ import torch.optim as optim
 from typing import Tuple
 
 
-
 def c_waypoint(
     start: np.ndarray,
     goal: np.ndarray,
@@ -65,7 +64,8 @@ def i_waypoint(
     goal: np.ndarray,
     psi: Callable[[np.ndarray], np.ndarray],
     A: np.ndarray,
-    c: float
+    c: float,
+    sigma: np.ndarray | None = None
 ) -> np.ndarray:
     """
     Compute the I-waypoint for a given start and goal state.
@@ -80,13 +80,14 @@ def i_waypoint(
     Returns:
         Waypoint embedding in latent space
     """
-    sigma_inv = (c/(c+1)) * (A.T @ A) + ((c+1)/c) * np.eye(A.shape[1])
-    sigma = np.linalg.inv(sigma_inv)
+    if sigma is None:
+        sigma_inv = (c/(c+1)) * (A.T @ A) + ((c+1)/c) * np.eye(A.shape[1])
+        sigma = np.linalg.inv(sigma_inv)
     mu = sigma @ (A.T @ psi(goal) + A @ psi(start))
 
     # print(mu, sigma)
 
-    i_waypoint_emb = np.random.multivariate_normal(mu, sigma)
+    i_waypoint_emb = mu + np.linalg.cholesky(sigma) @ np.random.randn(len(mu))
     return i_waypoint_emb
 
 

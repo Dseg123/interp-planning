@@ -19,7 +19,7 @@ from omegaconf import OmegaConf
 import copy
 
 
-def load_model(model_path):
+def load_model(model_path, verbose=True):
     """
     Load a saved model from a .pt file.
 
@@ -58,13 +58,13 @@ def load_model(model_path):
     # Load other parameters
     A_np = checkpoint['A_np']
     log_lambda_np = checkpoint['log_lambda_np']
-
-    print(f"Successfully loaded model from: {model_path}")
-    print(f"Configuration:")
-    print(f"  Environment: K={config.env.K}, N={config.env.N}, O={config.env.O}")
-    print(f"  Model: latent_dim={config.model.k}, hidden_dims={config.model.hidden_dims}")
-    print(f"  Waypoint type: {config.planner.waypoint_type}")
-    print(f"  Seed: {config.seed}")
+    if verbose:
+        print(f"Successfully loaded model from: {model_path}")
+        print(f"Configuration:")
+        print(f"  Environment: K={config.env.K}, N={config.env.N}, O={config.env.O}")
+        print(f"  Model: latent_dim={config.model.k}, hidden_dims={config.model.hidden_dims}")
+        print(f"  Waypoint type: {config.planner.waypoint_type}")
+        print(f"  Seed: {config.seed}")
 
     return {
         'psi_net': psi_net,

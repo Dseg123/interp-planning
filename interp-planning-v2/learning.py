@@ -61,7 +61,8 @@ def contrastive_loss_with_dual(
     log_lambda: torch.Tensor,
     current_states: torch.Tensor,
     future_states: torch.Tensor,
-    c_target: float = 1.0
+    c_target: float = 1.0,
+    device: torch.device = None
 ) -> Tuple[torch.Tensor, dict]:
     """
     Compute contrastive loss with dual formulation from the paper.
@@ -81,10 +82,17 @@ def contrastive_loss_with_dual(
         current_states: Batch of current states (batch_size, state_dim)
         future_states: Batch of future states (batch_size, state_dim)
         c_target: Target L2 norm constraint
+        device: Device to use for computation (CPU or CUDA)
 
     Returns:
         Tuple of (total_loss, metrics_dict)
     """
+    if device is None:
+        device = next(psi_net.parameters()).device
+    
+    # Move data to device if needed
+    current_states = current_states.to(device)
+    future_states = future_states.to(device)
     # Get embeddings
     # phi = A @ psi(x0) - transformed current state embeddings
     # psi = psi(xT) - future state embeddings
@@ -166,7 +174,8 @@ def learning_epoch(
     learning_rate: float = 0.001,
     iters_per_epoch: int = 1,
     policy_temperature: float = 1.0,
-    c_target: float = 1.0
+    c_target: float = 1.0,
+    device: torch.device = None
 ) -> Tuple[StateEncoder, torch.Tensor, torch.Tensor, GreedyPolicy, dict]:
     """
     Perform gradient descent on psi_net, A, and log_lambda using contrastive loss.
@@ -182,16 +191,21 @@ def learning_epoch(
         iters_per_epoch: Number of gradient steps
         policy_temperature: Temperature for policy softmax
         c_target: Target L2 norm constraint
+        device: Device to use for computation (CPU or CUDA)
 
     Returns:
         Tuple of (psi_net, A, log_lambda, policy, metrics)
     """
-    # Convert states to tensors
+    # Determine device
+    if device is None:
+        device = next(psi_net.parameters()).device
+    
+    # Convert states to tensors and move to device
     current_states_np = np.array([s for s in current_states], dtype=np.float32)
     future_states_np = np.array([s for s in future_states], dtype=np.float32)
 
-    current_states_tensor = torch.from_numpy(current_states_np)
-    future_states_tensor = torch.from_numpy(future_states_np)
+    current_states_tensor = torch.from_numpy(current_states_np).to(device)
+    future_states_tensor = torch.from_numpy(future_states_np).to(device)
 
     # Create optimizer for all parameters
     optimizer = torch.optim.Adam(
@@ -208,7 +222,8 @@ def learning_epoch(
         loss, metrics = contrastive_loss_with_dual(
             psi_net, A, log_lambda,
             current_states_tensor, future_states_tensor,
-            c_target=c_target
+            c_target=c_target,
+            device=device
         )
         print("Loss time:", time.time() - start)
 
@@ -224,16 +239,16 @@ def learning_epoch(
     def s_encoder(state: np.ndarray) -> np.ndarray:
         """Encode state: A @ psi(state)"""
         with torch.no_grad():
-            state_tensor = torch.from_numpy(state.astype(np.float32)).unsqueeze(0)
-            emb = psi_net(state_tensor).squeeze(0).numpy()
-            return A.detach().numpy() @ emb
+            state_tensor = torch.from_numpy(state.astype(np.float32)).unsqueeze(0).to(device)
+            emb = psi_net(state_tensor).squeeze(0).cpu().numpy()
+            return A.detach().cpu().numpy() @ emb
 
     new_policy = GreedyPolicy(env, s_encoder, temperature=policy_temperature)
 
     return psi_net, A, log_lambda, new_policy, metrics
 
 
-def initialize_encoder_random(state_dim: int, latent_dim: int, hidden_dims: List[int] = [64, 64]) -> StateEncoder:
+def initialize_encoder_random(state_dim: int, latent_dim: int, hidden_dims: List[int] = [64, 64], device: torch.device = None) -> StateEncoder:
     """
     Initialize state encoder with random weights.
 
@@ -241,11 +256,16 @@ def initialize_encoder_random(state_dim: int, latent_dim: int, hidden_dims: List
         state_dim: Dimension of input state (N)
         latent_dim: Dimension of output embedding (k)
         hidden_dims: List of hidden layer sizes
+        device: Device to place the network on (CPU or CUDA)
 
     Returns:
         Initialized StateEncoder network
     """
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
     psi_net = StateEncoder(state_dim, latent_dim, hidden_dims)
+    psi_net = psi_net.to(device)
 
     # Xavier/Kaiming initialization is done by default in PyTorch
     # Can add custom initialization here if needed
